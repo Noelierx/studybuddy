@@ -11,6 +11,7 @@ import { enUS } from "date-fns/locale/en-US";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "../shadcn-big-calendar/shadcn-big-calendar.css";
 import { Button } from "../ui/button";
+import { computeStudySuggestions } from "./scheduler";
 
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
@@ -57,8 +58,8 @@ export default function BigCalendar() {
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [editingEventId, setEditingEventId] = useState<number | null>(null);
-  
-  // simple categories + suggested flag
+  const [previewSuggestions, setPreviewSuggestions] = useState<any[] | null>(null);
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<number>>(new Set());
 
   function openModal() {
     setTitle("");
@@ -120,62 +121,27 @@ export default function BigCalendar() {
     setOpen(true);
   }
 
-  // style events: suggested study sessions get a distinct look
-  function eventStyleGetter(event: any) {
-    if (event.suggested) {
-      return {
-        style: {
-          backgroundColor: event.color || "rgba(16,185,129,0.18)",
-          border: "1px dashed rgba(16,185,129,0.6)",
-          color: "#065f46",
-        },
-      };
-    }
-    return {};
-  }
-
-  // Generate study sessions before detected deadlines
-  function suggestFocusTime() {
-    const now = new Date();
-    const upcomingDeadlines = events.filter((ev) => {
-      const titleLower = ev.title.toLowerCase();
-      const isDeadlineKeyword = /exam|final|deadline|mock|due/.test(titleLower);
-      // only future deadlines
-      return isDeadlineKeyword && new Date(ev.start) > now;
+  async function previewSuggestionsHandler() {
+    const suggestions = computeStudySuggestions(events, {
+      now: new Date(),
+      preferredSlots: [
+        { startHour: 18, endHour: 21, days: [1, 2, 3, 4, 5], label: "evening" },
+        { startHour: 9, endHour: 12, days: [0, 6], label: "weekend-morning" },
+        { startHour: 7, endHour: 9, days: [1, 2, 3, 4, 5], label: "morning" },
+      ],
+      intervals: [1, 3, 7, 14],
+      sessionDurationHours: 1.5,
     });
-
-    const suggestions: EventItem[] = [];
-    upcomingDeadlines.forEach((dl) => {
-      const dlDate = new Date(dl.start);
-      const subject = dl.title.split(/[:\-\(]/)[0].trim().split(" ").slice(0,2).join(" ");
-      // create up to 3 sessions: D-1, D-3, D-6 at 18:00-19:30
-      const offsets = [1, 3, 6];
-      offsets.forEach((off, idx) => {
-        const d = new Date(dlDate);
-        d.setDate(dlDate.getDate() - off);
-        if (d <= now) return; // don't schedule in the past
-        const s = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 18, 0);
-        const e = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 19, 30);
-        const id = Date.now() + Math.floor(Math.random() * 10000) + idx;
-        suggestions.push({ id, title: `Study: ${subject}`, start: s, end: e, suggested: true, color: "rgba(99,102,241,0.18)" } as any);
-      });
-    });
-
-    if (suggestions.length === 0) {
-      alert("No upcoming deadlines found to suggest focus time.");
-      return;
-    }
-
-    // prepend suggestions so they are visible
-    setEvents((prev) => [...suggestions, ...prev]);
-    alert(`Added ${suggestions.length} suggested study sessions.`);
+    setPreviewSuggestions(suggestions);
+    // default select all suggestions
+    setSelectedSuggestionIds(new Set(suggestions.map((s: any) => s.id)));
   }
 
   return (
     <div className="w-full">
       <div className="mb-4 flex justify-end gap-2">
         <Button onClick={openModal}>New Event</Button>
-        <Button variant="outline" onClick={suggestFocusTime}>Suggest Focus Time</Button>
+        <Button variant="outline" onClick={previewSuggestionsHandler}>Preview Suggestions</Button>
       </div>
 
       <DnDCalendar
@@ -189,7 +155,6 @@ export default function BigCalendar() {
         events={events}
         startAccessor="start"
         endAccessor="end"
-        eventPropGetter={eventStyleGetter}
         style={{ height: 700 }}
       />
 
@@ -235,6 +200,63 @@ export default function BigCalendar() {
               <Button type="submit">Save</Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {previewSuggestions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPreviewSuggestions(null)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-lg bg-card p-6 shadow-lg">
+            <h3 className="mb-4 text-lg font-semibold">Suggested Study Sessions</h3>
+            <ul className="max-h-96 overflow-auto space-y-2">
+                {previewSuggestions.map((s: any) => (
+                  <li key={s.id} className="rounded border p-3 flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedSuggestionIds.has(s.id)}
+                      onChange={() => {
+                        setSelectedSuggestionIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(s.id)) next.delete(s.id);
+                          else next.add(s.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <div className="flex-1">
+                      <div className="font-semibold">{s.title}</div>
+                      <div className="text-sm text-muted-foreground">{new Date(s.start).toLocaleString()} — {new Date(s.end).toLocaleString()}</div>
+                      <div className="text-xs text-muted-foreground">{s.reason}</div>
+                    </div>
+                  </li>
+                ))}
+            </ul>
+              <div className="mt-4 flex justify-between">
+                <div>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      // add selected suggestions to calendar
+                      if (!previewSuggestions) return;
+                      const toAdd = previewSuggestions.filter((s: any) => selectedSuggestionIds.has(s.id));
+                      if (toAdd.length === 0) {
+                        alert("No suggestions selected");
+                        return;
+                      }
+                      const newEvents = toAdd.map((s: any) => ({ id: s.id, title: s.title, start: new Date(s.start), end: new Date(s.end) }));
+                      setEvents((prev) => [...newEvents, ...prev]);
+                      setPreviewSuggestions(null);
+                      setSelectedSuggestionIds(new Set());
+                    }}
+                  >
+                    Add Selected
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setPreviewSuggestions(null)}>Close</Button>
+                </div>
+              </div>
+          </div>
         </div>
       )}
     </div>
