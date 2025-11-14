@@ -11,12 +11,12 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ className }) => {
     <section className={`${className || ""} py-16`}>
       <div className="container mx-auto px-4 max-w-6xl flex flex-col lg:flex-row items-center gap-12">
         <div className="flex-1">
-          <h1 className="text-4xl sm:text-5xl font-extrabold">Master Your Studies with Intelligent Planning</h1>
+          <h1 className="text-4xl sm:text-5xl font-extrabold">Master your studies with intelligent planning</h1>
           <p className="mt-4 text-lg text-muted-foreground">Study Buddy generates optimized revision schedules tailored to your exams, priorities, and availability</p>
 
           <div className="mt-8 flex items-center gap-4">
             <Button asChild size="lg">
-              <Link href="/signup">Get Started Free</Link>
+              <Link href="/signup">Get started free</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
               <Link href="/login">Login</Link>

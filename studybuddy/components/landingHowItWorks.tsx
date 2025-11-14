@@ -28,15 +28,15 @@ export const LandingHowItWorks: React.FC<LandingHowItWorksProps> = ({ className 
   const steps = [
     {
       icon: <PlusCircle />,
-      title: "Add Your Exams",
+      title: "Add your exams",
       description:
         "Input your exam dates, subjects, priorities, and difficulty levels to get started",
     },
     {
       icon: <Sparkles />,
-      title: "Generate Your Plan",
+      title: "Generate your plan",
       description:
-        "Our AI creates an optimized study schedule that fits your needs and maximizes your success",
+        "We create an optimized study schedule that fits your needs and maximizes your success",
     },
     {
       icon: <TrendingUp />,
@@ -49,7 +49,7 @@ export const LandingHowItWorks: React.FC<LandingHowItWorksProps> = ({ className 
   return (
     <section className={`${className || ""} py-12`}>
       <div className="container mx-auto max-w-4xl px-4">
-        <h2 className="text-2xl font-semibold text-center">How It Works</h2>
+        <h2 className="text-2xl font-semibold text-center">How it works</h2>
         <p className="text-center text-muted-foreground mt-2">Get started in three simple steps</p>
 
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-6">

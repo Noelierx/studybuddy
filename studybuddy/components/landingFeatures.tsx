@@ -1,4 +1,3 @@
-import React from "react";
 import { Brain, TrendingUp, Calendar, Zap } from "lucide-react";
 
 interface FeatureCardProps {
@@ -25,25 +24,25 @@ export const LandingFeatures: React.FC<LandingFeaturesProps> = ({ className }) =
   const features = [
     {
       icon: <Brain />,
-      title: "Smart Scheduling",
+      title: "Smart scheduling",
       description:
         "AI-powered study plan generation based on exam priorities, difficulty, and your available time",
     },
     {
       icon: <TrendingUp />,
-      title: "Track Progress",
+      title: "Track progress",
       description:
         "Visual progress tracking for all your exams with detailed session history and completion rates",
     },
     {
       icon: <Calendar />,
-      title: "Stay Organized",
+      title: "Stay organized",
       description:
         "Manage all exams and study sessions in one place with a clean, intuitive interface",
     },
     {
       icon: <Zap />,
-      title: "Adaptive Planning",
+      title: "Adaptive planning",
       description:
         "Plans that automatically adjust to your unique study needs and changing schedule",
     },
@@ -52,7 +51,7 @@ export const LandingFeatures: React.FC<LandingFeaturesProps> = ({ className }) =
   return (
     <section className={`${className || ""} py-12`}>
       <div className="container mx-auto max-w-5xl px-4">
-        <h2 className="text-2xl font-semibold text-center">Everything You Need to Excel</h2>
+        <h2 className="text-2xl font-semibold text-center">Everything you need to excel</h2>
         <p className="text-center text-muted-foreground mt-2">Powerful features designed to help you study smarter, not harder</p>
 
         <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-6">
