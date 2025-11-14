@@ -35,6 +35,13 @@ export function LoginForm({
       const supabase = createClient()
       const { error: signInError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
       })
 
       if (signInError) {
@@ -47,7 +54,6 @@ export function LoginForm({
     } finally {
       setLoading(false)
     }
-
   }
 
 
@@ -76,7 +82,7 @@ export function LoginForm({
       }
 
       // redirect on success — minimal client-side redirect
-      window.location.href = "/"
+      window.location.href = "/dashboard"
     } catch (err: any) {
       setError(err?.message ?? String(err))
     } finally {
