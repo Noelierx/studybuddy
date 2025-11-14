@@ -1,6 +1,6 @@
 TODO
-- [ ] Landing page
-- [ ] Google Authentification
+- [X] Landing page
+- [X] Google Authentification
 - [ ] Get calendar
 - [ ] Check courses
 - [ ] Identify courses, deadlines projects and stuff
