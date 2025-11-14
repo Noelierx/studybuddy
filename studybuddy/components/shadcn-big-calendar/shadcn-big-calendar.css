@@ -1,0 +1,129 @@
+.rbc-calendar {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-sizing: border-box;
+}
+
+.rbc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid hsl(var(--border));
+  gap: 0.5rem;
+}
+
+.rbc-toolbar .rbc-toolbar-label {
+  font-weight: 700;
+  text-align: center;
+  flex: 1;
+}
+
+.rbc-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.rbc-btn.rbc-active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.rbc-month-view,
+.rbc-time-view {
+  border: none;
+}
+
+.rbc-month-view .rbc-header {
+  padding: 0.5rem 0.25rem;
+  text-align: center;
+  font-weight: 600;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+.rbc-date-cell {
+  padding: 0.25rem;
+  text-align: right;
+}
+
+.rbc-now,
+.rbc-date-cell.rbc-now {
+  font-weight: 700;
+}
+
+.rbc-event,
+.rbc-slot-selection {
+  background-color: hsla(var(--primary), 0.12);
+  background-color: rgba(59,130,246,0.12);
+  border: 1px solid hsl(var(--primary));
+  border-color: rgba(59,130,246,0.6);
+  border-radius: 8px;
+}
+
+.rbc-event {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rbc-slot-selecting .rbc-slot-selection {
+  background-color: hsla(var(--primary), 0.18);
+  background-color: rgba(59,130,246,0.18);
+}
+
+.rbc-selected-cell,
+.rbc-selected {
+  background-color: hsla(var(--primary), 0.08);
+  background-color: rgba(59,130,246,0.08);
+}
+
+.rbc-addons-dnd-dragging .rbc-event {
+  opacity: 0.95;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+  transform: scale(1.02);
+  border: 1px solid rgba(59,130,246,0.35);
+}
+
+.rbc-event:hover {
+  filter: brightness(0.95);
+}
+
+.rbc-show-more {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.rbc-overlay {
+  background-color: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+
+.rbc-day-bg {
+  background-color: transparent;
+}
+
+.rbc-agenda-empty {
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
