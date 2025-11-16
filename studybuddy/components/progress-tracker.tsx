@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Check, Circle, Clock } from 'lucide-react';
 import { Exam } from '../lib/database.types';
+import { onAuthStateChanged, getAuth } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 
 interface StudySession {
   id: string;
@@ -32,7 +34,18 @@ export function ProgressTracker({ exams }: ProgressTrackerProps) {
   const loadStudySessions = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/study-sessions');
+
+      // Get current user from Firebase
+      const user = await new Promise<any>((resolve) => {
+        onAuthStateChanged(auth, (user) => resolve(user))
+      })
+
+      if (!user) {
+        console.error('Not authenticated');
+        return;
+      }
+
+      const response = await fetch(`/api/study-sessions?userId=${user.uid}`);
       if (response.ok) {
         const data = await response.json();
         setStudySessions(data.sessions || []);
@@ -46,11 +59,25 @@ export function ProgressTracker({ exams }: ProgressTrackerProps) {
 
   const toggleComplete = async (sessionId: string, completed: boolean) => {
     try {
+      // Get current user from Firebase
+      const user = await new Promise<any>((resolve, reject) => {
+        onAuthStateChanged(auth, (user) => {
+          if (user) resolve(user);
+          else reject(new Error('Not authenticated'));
+        })
+      })
+
+      if (!user) {
+        alert('Not authenticated');
+        return;
+      }
+
       const now = new Date().toISOString();
       const response = await fetch('/api/study-sessions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: user.uid,
           id: sessionId,
           completed: !completed,
           actual_start: !completed ? now : undefined,

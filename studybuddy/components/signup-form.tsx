@@ -42,20 +42,12 @@ export function SignupForm({
       }
 
       try {
-        const { createClient } = await import("@/utils/supabase/client")
-        const supabase = createClient()
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-        })
+        const { auth } = await import("@/lib/firebase")
+        const { createUserWithEmailAndPassword } = await import("firebase/auth")
 
-        if (signUpError) {
-          setError(signUpError.message)
-          setLoading(false)
-          return
-        }
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password)
 
-    window.location.href = "/login"
+        window.location.href = "/dashboard"
       } catch (err: any) {
         setError(err?.message ?? String(err))
       } finally {

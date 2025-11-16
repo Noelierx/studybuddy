@@ -3,27 +3,54 @@
 import { useState, useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { Plus, BookOpen, Calendar as CalendarIcon } from "lucide-react";
+import { BookOpen, Trash2 } from "lucide-react";
 import BigCalendar from "../../components/big-calendar/BigCalendar";
+// import { CalendarEventForm } from "../../components/calendar-event-form";
 import { ExamForm } from "../../components/exam-form";
-import { CalendarEventForm } from "../../components/calendar-event-form";
-import { ProgressTracker } from "../../components/progress-tracker";
+
 import { Exam } from "../../lib/database.types";
+
+import { useRouter } from "next/navigation";
 
 export default function DashboardPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [showExamForm, setShowExamForm] = useState(false);
-  const [showEventForm, setShowEventForm] = useState(false);
+
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
-    loadExams();
+    checkAuth();
   }, []);
 
-  const loadExams = async () => {
+  const checkAuth = async () => {
+    try {
+      const { onAuthStateChanged } = await import("firebase/auth");
+      const { auth } = await import("../../lib/firebase");
+
+      return new Promise((resolve) => {
+        onAuthStateChanged(auth, (user) => {
+          if (user) {
+            setCurrentUser(user);
+            loadExams(user.uid);
+          } else {
+            router.push('/login');
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      router.push('/login');
+    }
+  };
+
+  const loadExams = async (userId: string) => {
     try {
       setLoading(true);
-      const response = await fetch('/api/exams');
+      const response = await fetch(`/api/exams?userId=${userId}`);
       if (response.ok) {
         const data = await response.json();
         setExams(data.exams || []);
@@ -40,7 +67,7 @@ export default function DashboardPage() {
       const response = await fetch('/api/exams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(examData),
+        body: JSON.stringify({ ...examData, userId: currentUser?.uid }),
       });
 
       if (response.ok) {
@@ -55,23 +82,27 @@ export default function DashboardPage() {
     }
   };
 
-  const handleCreateEvent = async (eventData: any) => {
+
+
+  const handleDeleteExam = async (examId: string | number) => {
+    if (!confirm('Are you sure you want to delete this exam and all associated study sessions?')) {
+      return;
+    }
+
     try {
-      const response = await fetch('/api/calendar/from-supabase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(eventData),
+      const response = await fetch(`/api/exams?id=${examId}&userId=${currentUser?.uid}`, {
+        method: 'DELETE',
       });
 
       if (response.ok) {
-        setShowEventForm(false);
-        alert('Event created successfully in Google Calendar!');
+        setExams(prev => prev.filter(exam => String(exam.id) !== String(examId)));
+        alert('Exam and associated study sessions deleted successfully!');
       } else {
         const error = await response.json();
-        alert(`Failed to create event: ${error.error}`);
+        alert(`Failed to delete exam: ${error.error}`);
       }
     } catch (error) {
-      alert('Error creating event');
+      alert('Error deleting exam');
     }
   };
 
@@ -85,17 +116,12 @@ export default function DashboardPage() {
               <BookOpen className="h-4 w-4 mr-2" />
               Add Exam
             </Button>
-            <Button variant="outline" onClick={() => setShowEventForm(true)}>
-              <CalendarIcon className="h-4 w-4 mr-2" />
-              New Event
-            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-          {/* Progress & Exams */}
-          <div className="xl:col-span-2 space-y-6">
-            {/* Quick Exam Overview */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {/* Exams */}
+          <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Your Exams</CardTitle>
@@ -111,15 +137,27 @@ export default function DashboardPage() {
                 ) : (
                   <div className="space-y-3">
                     {exams.map((exam) => (
-                      <div key={exam.id} className="p-3 border rounded-lg">
-                        <h3 className="font-semibold">{exam.title}</h3>
-                        <p className="text-sm text-muted-foreground">{exam.subject}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Due: {new Date(exam.due_date).toLocaleDateString()}
-                        </p>
-                        <div className="flex items-center gap-2 mt-2 text-xs">
-                          <span>Priority: {exam.priority}/5</span>
-                          <span>Difficulty: {exam.difficulty}/5</span>
+                      <div key={exam.id} className="p-3 border rounded-lg relative group">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{exam.title}</h3>
+                            <p className="text-sm text-muted-foreground">{exam.subject}</p>
+                            <p className="text-xs text-muted-foreground">
+                              Due: {new Date(exam.due_date).toLocaleDateString()}
+                            </p>
+                            <div className="flex items-center gap-2 mt-2 text-xs">
+                              <span>Priority: {exam.priority}/5</span>
+                              <span>Difficulty: {exam.difficulty}/5</span>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteExam(exam.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-red-600 hover:text-red-700 hover:border-red-300"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -127,13 +165,10 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Progress Tracking */}
-            <ProgressTracker exams={exams} />
           </div>
 
           {/* Calendar */}
-          <div className="xl:col-span-2">
+          <div>
             <Card>
               <CardHeader>
                 <CardTitle>Calendar & Study Plan</CardTitle>
@@ -159,19 +194,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Event Form Modal */}
-        {showEventForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setShowEventForm(false)} />
-            <div className="relative z-10 w-full max-w-md rounded-lg bg-card p-6 shadow-lg">
-              <h3 className="mb-4 text-lg font-semibold">Create Calendar Event</h3>
-              <CalendarEventForm
-                onSubmit={handleCreateEvent}
-                onCancel={() => setShowEventForm(false)}
-              />
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );

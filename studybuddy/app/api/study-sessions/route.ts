@@ -1,46 +1,39 @@
 import { NextRequest } from "next/server";
-import { createClient } from "@/utils/supabase/server";
-import { StudySession } from "@/lib/database.types";
+import { adminDb } from "@/lib/firebase-admin";
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: session } = await supabase.auth.getSession();
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get('userId');
+    const examId = searchParams.get('exam_id');
 
-    if (!session.session) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "User ID required" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    const { searchParams } = new URL(req.url);
-    const exam_id = searchParams.get('exam_id');
+    let query = adminDb.collection('study-sessions')
+      .where('user_id', '==', userId);
 
-    let query = supabase
-      .from('study_sessions')
-      .select('*')
-      .eq('user_id', session.session.user.id)
-      .order('scheduled_start', { ascending: false });
-
-    if (exam_id) {
-      query = query.eq('exam_id', exam_id);
+    if (examId) {
+      query = query.where('exam_id', '==', examId);
     }
 
-    const { data: sessions, error } = await query;
+    const sessionsSnapshot = await query.orderBy('scheduled_start', 'desc').get();
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const sessions = sessionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-    return new Response(JSON.stringify({ sessions: sessions || [] }), {
+    return new Response(JSON.stringify({ sessions }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    console.error('Study sessions GET error:', err);
     return new Response(JSON.stringify({ error: String(err?.message ?? err) }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -50,18 +43,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: session } = await supabase.auth.getSession();
+    const body = await req.json();
+    const { userId, exam_id, title, scheduled_start, scheduled_end, notes } = body;
 
-    if (!session.session) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "User ID required" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
       });
     }
-
-    const body = await req.json();
-    const { exam_id, title, scheduled_start, scheduled_end, notes } = body;
 
     if (!exam_id || !title || !scheduled_start || !scheduled_end) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -70,36 +60,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const newSession: Omit<StudySession, 'id' | 'created_at' | 'updated_at'> = {
-      user_id: session.session.user.id,
+    const newSession = {
+      user_id: userId,
       exam_id,
       title,
       scheduled_start,
       scheduled_end,
-      actual_start: undefined,
-      actual_end: undefined,
+      actual_start: null,
+      actual_end: null,
       completed: false,
       notes: notes || '',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    const { data: sessionData, error } = await supabase
-      .from('study_sessions')
-      .insert(newSession)
-      .select()
-      .single();
+    // Add to Firestore
+    const docRef = await adminDb.collection('study-sessions').add(newSession);
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const session = { id: docRef.id, ...newSession };
 
-    return new Response(JSON.stringify({ session: sessionData }), {
+    return new Response(JSON.stringify({ session }), {
       status: 201,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    console.error('Study sessions POST error:', err);
     return new Response(JSON.stringify({ error: String(err?.message ?? err) }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
@@ -109,52 +94,63 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { data: session } = await supabase.auth.getSession();
-
-    if (!session.session) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
-
     const body = await req.json();
-    const { id, completed, notes, actual_start, actual_end } = body;
+    const { id, completed, notes, actual_start, actual_end, userId } = body;
 
-    if (!id) {
-      return new Response(JSON.stringify({ error: "Session ID required" }), {
+    if (!id || !userId) {
+      return new Response(JSON.stringify({ error: "Session ID and User ID required" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    const updateData: Partial<StudySession> = {};
+    const updateData: any = {};
     if (completed !== undefined) updateData.completed = completed;
     if (notes !== undefined) updateData.notes = notes;
     if (actual_start !== undefined) updateData.actual_start = actual_start;
     if (actual_end !== undefined) updateData.actual_end = actual_end;
+    updateData.updated_at = new Date().toISOString();
 
-    const { data: sessionData, error } = await supabase
-      .from('study_sessions')
-      .update(updateData)
-      .eq('id', id)
-      .eq('user_id', session.session.user.id) // Ensure user can only update their own sessions
-      .select()
-      .single();
+    // Update in Firestore
+    await adminDb.collection('study-sessions').doc(id).update(updateData);
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    const updatedSession = { id, ...updateData };
 
-    return new Response(JSON.stringify({ session: sessionData }), {
+    return new Response(JSON.stringify({ session: updatedSession }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
+    console.error('Study sessions PATCH error:', err);
+    return new Response(JSON.stringify({ error: String(err?.message ?? err) }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const url = new URL(req.url);
+    const sessionId = url.searchParams.get('id');
+    const userId = url.searchParams.get('userId');
+
+    if (!sessionId || !userId) {
+      return new Response(JSON.stringify({ error: "Session ID and User ID required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Delete from Firestore
+    await adminDb.collection('study-sessions').doc(sessionId).delete();
+
+    return new Response(JSON.stringify({ success: true, message: "Study session deleted" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    console.error('Study sessions DELETE error:', err);
     return new Response(JSON.stringify({ error: String(err?.message ?? err) }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

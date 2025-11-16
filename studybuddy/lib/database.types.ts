@@ -11,6 +11,7 @@ export type Exam = {
   difficulty: number; // 1-5
   estimated_hours: number;
   status: 'active' | 'completed' | 'cancelled';
+  google_calendar_id?: string | null;
 };
 
 export type StudySession = {
@@ -26,6 +27,7 @@ export type StudySession = {
   notes?: string;
   created_at: string;
   updated_at: string;
+  google_calendar_id?: string | null;
 };
 
 export type UserPreferences = {

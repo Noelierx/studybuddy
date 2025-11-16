@@ -1,24 +1,25 @@
 # 📚 StudyBuddy - Study Management Application
 
-Modern web application to organize your studies with Google Calendar integration. Manage your exams, schedule study sessions, and automatically sync everything with your Google Calendar.
+Modern web application to organize your studies with Google Calendar integration. Manage your exams, schedule study sessions, and automatically sync everything with your Google Calendar using Firebase Admin SDK.
 
 ## ✨ Features
 
-- 🔐 **Secure authentication** with Google OAuth
-- 📅 **Bidirectional Google Calendar** integration
-- 📝 **Exam management** (create, edit, delete)
-- 🎯 **Intelligent study session** scheduling
-- 📊 **Study progress** tracking
-- 📱 **Responsive interface** and intuitive design
-- 🌙 **Modern design** with Tailwind CSS
+- 🔐 **Secure authentication** with Google OAuth + Firebase
+- 📅 **Full Google Calendar** bidirectional sync
+- 🗃️ **Firestore database** for data persistence
+- 📝 **Complete exam management** (CRUD operations)
+- 🎯 **Intelligent study session** scheduling algorithm
+- 📊 **Study progress** tracking with completion status
+- 📱 **Responsive design** with modern UI components
+- 🌙 **Dark/light theme** with Tailwind CSS
 
 ## 🚀 Installation and Configuration Guide
 
 ### Prerequisites
 
 - Node.js 18+ installed
-- Google account (for OAuth)
-- Supabase account (free)
+- Google Cloud account (for service account)
+- Google account (for OAuth applications)
 
 ---
 
@@ -63,100 +64,69 @@ After creation, you'll see a popup with:
 
 ---
 
-## 💾 Supabase Configuration (Database)
+## 🔥 Firebase Configuration (Database + Auth)
 
-### 1. Create Supabase Project
+StudyBuddy uses Firebase for authentication and Firestore for database storage. No Supabase needed!
 
-1. Go to [supabase.com](https://supabase.com)
-2. Create a free account
-3. Create a new project
-4. Choose your region (Europe West recommended)
-5. Wait for creation (2-3 minutes)
+### 1. Create Firebase Project
 
-### 2. Retrieve Supabase Keys
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Click "Create a project" or "Add project"
+3. Give it a name (e.g., "StudyBuddy Firebase")
+4. Disable Google Analytics (optional)
+5. Click "Create project"
 
-1. In your project: "Settings" → "API"
-2. Note:
-   - **URL**: `https://xxx.supabase.co`
-   - **anon public key**: Starts with `eyJ...`
-   - **service_role key**: Keep secret
+### 2. Configure Authentication
 
-### 3. Configure OAuth in Supabase
+1. In left sidebar: "Authentication" → "Get started"
+2. Go to "Sign-in method" tab
+3. Enable "Google" provider
+4. Configure with your previously created OAuth client:
+   - **Web client ID**: Your Google OAuth client ID
+   - **Web client secret**: Your Google OAuth client secret
+5. Save configuration
 
-1. In your Supabase project: "Authentication" → "Providers"
-2. Enable "Google" and configure:
-   - **Client ID**: Copy from Google Cloud Console
-   - **Client Secret**: Copy from Google Cloud Console
-   - **Redirect URLs**:
-     - `http://localhost:3000/auth/callback` (dev)
-     - `https://your-domain.com/auth/callback` (prod)
-3. Save
+### 3. Setup Firestore Database
 
-### 4. Create Database
+1. In left sidebar: "Firestore Database" → "Create database"
+2. Choose "Start in test mode" (for development)
+3. Select a location (europe-west for Europe)
+4. Click "Done"
 
-In Supabase: "SQL Editor", execute:
+### 4. Firebase Admin SDK Configuration
 
-```sql
--- Create exams table
-CREATE TABLE exams (
-  id BIGSERIAL PRIMARY KEY,
-  user_id UUID NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  exam_date TIMESTAMP WITH TIME ZONE NOT NULL,
-  subject TEXT,
-  score DECIMAL,
-  passing_score DECIMAL,
-  study_hours_needed INTEGER,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+#### Create Service Account Key
+1. Go to "Project settings" (gear icon) → "Service accounts"
+2. Click "Generate new private key"
+3. Download the JSON file automatically
+4. **Important**: Move this file to `studybuddy/lib/` and rename to `service-account.json`
 
--- Create study_sessions table
-CREATE TABLE study_sessions (
-  id BIGSERIAL PRIMARY KEY,
-  user_id UUID NOT NULL,
-  exam_id BIGINT REFERENCES exams(id),
-  title TEXT NOT NULL,
-  scheduled_start TIMESTAMP WITH TIME ZONE NOT NULL,
-  scheduled_end TIMESTAMP WITH TIME ZONE NOT NULL,
-  actual_start TIMESTAMP WITH TIME ZONE,
-  actual_end TIMESTAMP WITH TIME ZONE,
-  completed BOOLEAN DEFAULT FALSE,
-  notes TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+#### ⚠️ Security Warning:
+- The `service-account.json` file contains sensitive credentials
+- **Never commit this file to Git**
+- Keep it secure and don't share it
 
--- Enable Row Level Security
-ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
-ALTER TABLE study_sessions ENABLE ROW LEVEL SECURITY;
+### 5. Firebase Client SDK Configuration
 
--- RLS Policies
-CREATE POLICY "Users can view own exams" ON exams
-  FOR SELECT USING (auth.uid() = user_id);
+1. In Firebase Console: "Project settings" → "Your apps"
+2. Click "Add app" → Web app icon (`</>`)
+3. Register app: name "StudyBuddy Web"
+4. Check "Also set up Firebase Hosting" (optional)
+5. Click "Register app"
 
-CREATE POLICY "Users can insert own exams" ON exams
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
+### 6. Get Firebase Configuration
 
-CREATE POLICY "Users can update own exams" ON exams
-  FOR UPDATE USING (auth.uid() = user_id);
+In "Project settings" → "Your apps" → "Web app", you'll see:
 
-CREATE POLICY "Users can delete own exams" ON exams
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Same for study_sessions
-CREATE POLICY "Users can view own sessions" ON study_sessions
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own sessions" ON study_sessions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own sessions" ON study_sessions
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own sessions" ON study_sessions
-  FOR DELETE USING (auth.uid() = user_id);
+```javascript
+const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123...",
+  appId: "1:123..."
+};
 ```
 
 ---
@@ -179,12 +149,16 @@ npm install
 Create `.env.local` file in `studybuddy/` folder:
 
 ```bash
-# Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123...
+NEXT_PUBLIC_FIREBASE_APP_ID=1:123...
 
-# Google OAuth (optional - handled by Supabase OAuth)
-GOOGLE_CLIENT_ID=your-google-client-id
+# Google OAuth (REQUIRED - copy from Google Cloud Console)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
@@ -263,12 +237,13 @@ npm run dev
 - Check Google Calendar permissions in OAuth
 - Refresh the page
 
-### Supabase Database
+### Firebase Database
 
-**Issue**: Tables not created
+**Issue**: Can't connect to Firestore
 **Solution**:
-- Execute provided SQL above in "SQL Editor"
-- Check RLS is enabled
+- Check `service-account.json` is properly placed in `lib/`
+- Verify Firebase project ID in environment variables
+- Ensure Firestore is initialized in test mode
 
 ### Port 3000 Already in Use
 
@@ -281,16 +256,20 @@ npm run dev
 ```
 studybuddy/
 ├── app/                 # Next.js 14 App Router
-│   ├── api/            # API Routes
-│   ├── auth/           # Authentication pages
-│   ├── dashboard/      # User dashboard
+│   ├── api/            # API Routes (Firestore operations)
+│   ├── auth/           # Firebase Auth pages
+│   ├── dashboard/      # User dashboard with calendar
 │   └── layout.tsx      # Global layout
 ├── components/         # React components
 │   ├── ui/            # shadcn/ui components
-│   └── big-calendar/  # Integrated calendar
-├── lib/               # Utilities
+│   └── big-calendar/  # Google Calendar integration
+├── lib/               # Core Firebase configurations
+│   ├── firebase.ts           # Client SDK
+│   ├── firebase-admin.ts     # Admin SDK
+│   └── service-account.json  # 🔒 Firebase service account (NOT in Git)
 ├── utils/             # Helper functions
-└── middleware.ts      # Authentication middleware
+├── firestore.rules    # Firestore security rules
+└── middleware.ts      # Firebase authentication middleware
 ```
 
 ---
@@ -299,9 +278,32 @@ studybuddy/
 
 ### Preparation
 
-1. **Deploy Supabase**: Keep configuration (databases already created)
-2. **Build application**: `npm run build`
-3. **Environment variables**: Configure on hosting platform
+1. **Deploy Firebase**: Keep project and Firestore configuration
+2. **Security**: Switch Firestore from "test mode" to production rules
+3. **Build application**: `npm run build`
+4. **Environment variables**: Configure all Firebase credentials
+5. **Service Account**: Ensure hosting platform can read `service-account.json`
+
+### Security Rules (Production)
+
+⚠️ **IMPORTANT**: Before going live, update `firestore.rules`:
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write their own exams
+    match /exams/{examId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Allow authenticated users to read/write their own study sessions
+    match /study-sessions/{sessionId} {
+      allow read, write: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}
+```
 
 ### Recommended Platforms
 
@@ -313,16 +315,27 @@ npm i -g vercel
 # Deploy
 vercel --prod
 ```
+Note: Add `service-account.json` to Vercel's excluded files via UI
+
+**Firebase Hosting (Recommended for Firebase)**
+```bash
+# Install Firebase CLI
+npm install -g firebase-tools
+
+# Deploy hosting and functions
+firebase deploy
+```
 
 **Netlify**
-1. Connect your Git repo
-2. Add environment variables
-3. Deploy
+1. Connect GitHub repo
+2. Add all environment variables
+3. Upload `service-account.json` as build environment file
+4. Deploy
 
 **Railway**
-1. Connect GitHub
-2. Environment variables
-3. Auto-deployment
+1. Connect GitHub repo
+2. Environment variables + service account file
+3. Auto-deployment with builds
 
 ---
 
@@ -346,7 +359,7 @@ This project is licensed under MIT. See `LICENSE` for more information.
 
 If you have questions:
 - Open an issue on GitHub
-- Official docs: [Next.js](https://nextjs.org/), [Supabase](https://supabase.com/docs)
+- Official docs: [Next.js](https://nextjs.org/), [Firebase](https://firebase.google.com/docs)
 
 ---
 
