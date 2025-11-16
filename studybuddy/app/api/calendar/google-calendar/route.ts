@@ -1,17 +1,21 @@
-// Google Calendar API integration for modifying events
-
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 
 export async function GET() {
-  return NextResponse.json({
+  return new Response(JSON.stringify({
     error: "Use client-side for reading events"
-  }, { status: 410 })
+  }), {
+    status: 410,
+    headers: { 'Content-Type': 'application/json' }
+  })
 }
 
 export async function POST() {
-  return NextResponse.json({
+  return new Response(JSON.stringify({
     error: "Use client-side for creating events"
-  }, { status: 410 })
+  }), {
+    status: 410,
+    headers: { 'Content-Type': 'application/json' }
+  })
 }
 
 export async function PUT(req: NextRequest) {
@@ -19,7 +23,10 @@ export async function PUT(req: NextRequest) {
     const { eventId, title, startTime, endTime, accessToken } = await req.json()
 
     if (!eventId || !title || !startTime || !endTime || !accessToken) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
@@ -45,10 +52,16 @@ export async function PUT(req: NextRequest) {
       throw new Error('Failed to update Google Calendar event')
     }
 
-    return NextResponse.json({ success: true })
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
   } catch (error) {
     console.error('Error updating Google Calendar event:', error)
-    return NextResponse.json({ error: "Failed to update event" }, { status: 500 })
+    return new Response(JSON.stringify({ error: "Failed to update event" }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
 
@@ -57,7 +70,10 @@ export async function DELETE(req: NextRequest) {
     const { eventId, accessToken } = await req.json()
 
     if (!eventId || !accessToken) {
-      return NextResponse.json({ error: "Missing eventId or accessToken" }, { status: 400 })
+      return new Response(JSON.stringify({ error: "Missing eventId or accessToken" }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
 
     const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`, {
@@ -71,9 +87,15 @@ export async function DELETE(req: NextRequest) {
       throw new Error('Failed to delete Google Calendar event')
     }
 
-    return NextResponse.json({ success: true })
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    })
   } catch (error) {
     console.error('Error deleting Google Calendar event:', error)
-    return NextResponse.json({ error: "Failed to delete event" }, { status: 500 })
+    return new Response(JSON.stringify({ error: "Failed to delete event" }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    })
   }
 }
