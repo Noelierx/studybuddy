@@ -55,7 +55,6 @@ export function SignupForm({
           return
         }
 
-    // redirect on success — minimal client-side redirect
     window.location.href = "/login"
       } catch (err: any) {
         setError(err?.message ?? String(err))

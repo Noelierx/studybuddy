@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format } from "date-fns/format";
@@ -11,61 +11,57 @@ import { enUS } from "date-fns/locale/en-US";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "../shadcn-big-calendar/shadcn-big-calendar.css";
 import { Button } from "../ui/button";
-import { computeStudySuggestions } from "./scheduler";
+import { computeStudySuggestionsFromExams, Exam } from "./scheduler";
 
 const locales = { "en-US": enUS };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
 const now = new Date();
-const currentYear = now.getFullYear();
-const currentMonth = now.getMonth();
 
-type EventItem = { id: number; title: string; start: Date; end: Date };
+type EventItem = { id: string | number; title: string; start: Date; end: Date; isStudySession?: boolean; source?: string };
 
-const initialEvents: EventItem[] = [
-  {
-    id: 1,
-    title: "Math - Past Paper",
-    start: new Date(currentYear, currentMonth, 3, 10, 0),
-    end: new Date(currentYear, currentMonth, 3, 11, 0),
-  },
-  {
-    id: 2,
-    title: "Physics Review",
-    start: new Date(currentYear, currentMonth, 7, 14, 0),
-    end: new Date(currentYear, currentMonth, 7, 15, 30),
-  },
-  {
-    id: 3,
-    title: "Group Study",
-    start: new Date(currentYear, currentMonth, 14, 16, 0),
-    end: new Date(currentYear, currentMonth, 14, 18, 0),
-  },
-  {
-    id: 4,
-    title: "Mock Exam",
-    start: new Date(currentYear, currentMonth, 21, 9, 0),
-    end: new Date(currentYear, currentMonth, 21, 12, 0),
-  },
-];
+interface StudySession {
+  id: number;
+  title: string;
+  scheduled_start: string;
+  scheduled_end: string;
+  exam_id: number;
+  notes?: string;
+}
+
+interface PreviewSuggestion {
+  id: string | number;
+  title: string;
+  start: Date;
+  end: Date;
+  reason?: string;
+}
+
+const initialEvents: EventItem[] = [];
 
 const DnDCalendar = withDragAndDrop(Calendar) as any;
 
-export default function BigCalendar() {
+interface BigCalendarProps {
+  exams: Exam[];
+}
+
+export default function BigCalendar({ exams }: BigCalendarProps) {
   const [events, setEvents] = useState<EventItem[]>(initialEvents);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [editingEventId, setEditingEventId] = useState<number | null>(null);
-  const [previewSuggestions, setPreviewSuggestions] = useState<any[] | null>(null);
-  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<number>>(new Set());
+  const [previewSuggestions, setPreviewSuggestions] = useState<PreviewSuggestion[] | null>(null);
+  const [selectedSuggestionIds, setSelectedSuggestionIds] = useState<Set<string | number>>(new Set());
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [studySessions, setStudySessions] = useState<StudySession[]>([]);
+  const [editingEventId, setEditingEventId] = useState<string | number | null>(null);
 
   function openModal() {
     setTitle("");
     setStart("");
     setEnd("");
-    setEditingEventId(null);
     setOpen(true);
   }
 
@@ -73,7 +69,7 @@ export default function BigCalendar() {
     setOpen(false);
   }
 
-  function addEvent(e: React.FormEvent) {
+  async function addEvent(e: React.FormEvent) {
     e.preventDefault();
     if (!title || !start || !end) return;
     const s = new Date(start);
@@ -82,13 +78,38 @@ export default function BigCalendar() {
       alert("End must be after start");
       return;
     }
-    if (editingEventId) {
-      setEvents((prev) => prev.map((ev) => (ev.id === editingEventId ? { ...ev, title, start: s, end: en } : ev)));
-    } else {
-      const newEvent: EventItem = { id: Date.now(), title, start: s, end: en };
+
+    try {
+      const res = await fetch('/api/calendar/from-supabase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, start: s.toISOString(), end: en.toISOString() })
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Unknown error' }));
+        alert(`Failed to sync to Google Calendar: ${error.error}`);
+        return;
+      }
+
+      const { event } = await res.json();
+
+      const newEvent: EventItem = {
+        id: event.id,
+        title: event.summary,
+        start: new Date(event.start.dateTime || event.start.date),
+        end: new Date(event.end.dateTime || event.end.date),
+        source: 'app'
+      };
+
       setEvents((prev) => [newEvent, ...prev]);
+      closeModal();
+      window.location.reload();
+
+    } catch (error) {
+      alert('Error creating event');
+      console.error(error);
     }
-    closeModal();
   }
 
   function toInputDateTime(d: Date) {
@@ -101,7 +122,6 @@ export default function BigCalendar() {
     setTitle("");
     setStart(toInputDateTime(new Date(slotInfo.start)));
     setEnd(toInputDateTime(new Date(slotInfo.end)));
-    setEditingEventId(null);
     setOpen(true);
   }
 
@@ -122,7 +142,12 @@ export default function BigCalendar() {
   }
 
   async function previewSuggestionsHandler() {
-    const suggestions = computeStudySuggestions(events, {
+    if (exams.length === 0) {
+      alert("No exams to generate study plan for. Add some exams first!");
+      return;
+    }
+
+    const suggestions = computeStudySuggestionsFromExams(exams, events, {
       now: new Date(),
       preferredSlots: [
         { startHour: 18, endHour: 21, days: [1, 2, 3, 4, 5], label: "evening" },
@@ -133,8 +158,104 @@ export default function BigCalendar() {
       sessionDurationHours: 1.5,
     });
     setPreviewSuggestions(suggestions);
-    // default select all suggestions
     setSelectedSuggestionIds(new Set(suggestions.map((s: any) => s.id)));
+  }
+
+  useEffect(() => {
+    async function load() {
+      setLoadingEvents(true)
+      setFetchError(null)
+      try {
+        const studyRes = await fetch('/api/study-sessions')
+        const studyData = await studyRes.json()
+        const sessions = studyData.sessions || []
+        setStudySessions(sessions)
+
+        const googleRes = await fetch('/api/calendar/from-supabase')
+        if (!googleRes.ok) {
+          const err = await googleRes.json().catch(() => ({ error: 'Unknown error' }))
+          setFetchError(err?.error || `HTTP ${googleRes.status}`)
+          setLoadingEvents(false)
+          return
+        }
+
+        const googleData = await googleRes.json()
+        const googleEvents: any[] = googleData.events ?? []
+        const googleEventTitles = new Set(googleEvents.map((ev: any) => ev.summary))
+
+        const sessionsToSync = sessions.filter((session: any) => !googleEventTitles.has(session.title))
+
+        for (const session of sessionsToSync) {
+          try {
+            const calendarRes = await fetch('/api/calendar/from-supabase', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                title: session.title,
+                start: session.scheduled_start,
+                end: session.scheduled_end,
+                isStudySession: true,
+                examId: session.exam_id
+              })
+            });
+
+            if (!calendarRes.ok) {
+              const errorData = await calendarRes.json().catch(() => ({}))
+            }
+          } catch (error) {
+          }
+        }
+
+        const mapped: EventItem[] = googleEvents.map((ev: any, idx: number) => {
+          const s = ev.start?.dateTime ?? ev.start?.date
+          const e = ev.end?.dateTime ?? ev.end?.date
+          const startDate = s ? new Date(s) : new Date()
+          const endDate = e ? new Date(e) : new Date(startDate.getTime() + 60 * 60 * 1000)
+
+          const isStudySession = sessions.some((sess: any) =>
+            sess.title === ev.summary &&
+            Math.abs(new Date(sess.scheduled_start).getTime() - startDate.getTime()) < 60000
+          );
+
+          return {
+            id: ev.id ?? Date.now() + idx,
+            title: ev.summary ?? '(no title)',
+            start: startDate,
+            end: endDate,
+            source: 'google',
+            isStudySession
+          }
+        })
+
+        setEvents((prev) => {
+          const existingIds = new Set(prev.map((p) => String(p.id)))
+          const toAdd = mapped.filter((m) => !existingIds.has(String(m.id)))
+          return [...toAdd, ...prev]
+        })
+      } catch (err: any) {
+        setFetchError(String(err?.message ?? err))
+      } finally {
+        setLoadingEvents(false)
+      }
+    }
+
+    load()
+  }, [])
+
+  if (loadingEvents) {
+    return (
+      <div className="w-full flex items-center justify-center min-h-[700px]">
+        <div className="text-lg">Loading calendar...</div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="w-full flex items-center justify-center min-h-[700px]">
+        <div className="text-red-500">Error loading calendar: {fetchError}</div>
+      </div>
+    );
   }
 
   return (
@@ -235,18 +356,98 @@ export default function BigCalendar() {
                 <div>
                   <Button
                     variant="secondary"
-                    onClick={() => {
-                      // add selected suggestions to calendar
+                    onClick={async () => {
                       if (!previewSuggestions) return;
                       const toAdd = previewSuggestions.filter((s: any) => selectedSuggestionIds.has(s.id));
                       if (toAdd.length === 0) {
                         alert("No suggestions selected");
                         return;
                       }
-                      const newEvents = toAdd.map((s: any) => ({ id: s.id, title: s.title, start: new Date(s.start), end: new Date(s.end) }));
-                      setEvents((prev) => [...newEvents, ...prev]);
-                      setPreviewSuggestions(null);
-                      setSelectedSuggestionIds(new Set());
+
+                      try {
+                        const first = toAdd[0];
+                        let exam: any = null;
+
+                        if (typeof first?.id === 'string') {
+                          const m = String(first.id).match(/^session-([^-/]+)(?:-|$)/);
+                          if (m) {
+                            const aid = m[1];
+                            exam = exams.find((e: any) => String(e.id) === aid);
+                          }
+                        }
+
+                        if (!exam && typeof first?.reason === 'string') {
+                          const m2 = first.reason.match(/Before\s+(.+?)(?:\s*\(|$)/);
+                          if (m2) {
+                            const examTitle = m2[1].trim();
+                            exam = exams.find((e: any) => e.title === examTitle);
+                          }
+                        }
+
+                        if (!exam) {
+                          alert("Could not find exam for this session");
+                          return;
+                        }
+
+                        const savePromises = toAdd.map(s =>
+                          fetch('/api/study-sessions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              exam_id: exam.id,
+                              title: s.title,
+                              scheduled_start: new Date(s.start).toISOString(),
+                              scheduled_end: new Date(s.end).toISOString(),
+                              notes: s.reason
+                            })
+                          })
+                        );
+
+                        const saveResults = await Promise.all(savePromises);
+                        const failed = saveResults.filter(r => !r.ok);
+
+                        if (failed.length > 0) {
+                          alert(`${failed.length} sessions failed to save to database`);
+                          return;
+                        }
+
+                        const calendarPromises = toAdd.map(s =>
+                          fetch('/api/calendar/from-supabase', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              title: s.title,
+                              start: new Date(s.start).toISOString(),
+                              end: new Date(s.end).toISOString(),
+                              isStudySession: true,
+                              examId: exam.id
+                            })
+                          })
+                        );
+
+                        const calendarResults = await Promise.all(calendarPromises);
+                        const calendarFailed = calendarResults.filter(r => !r.ok);
+
+                        if (calendarFailed.length > 0) {
+                          alert(`${calendarFailed.length} sessions failed to sync to Google Calendar`);
+                        }
+
+                        const newEvents = toAdd.map((s: any) => ({
+                          id: s.id,
+                          title: s.title,
+                          start: new Date(s.start),
+                          end: new Date(s.end),
+                          isStudySession: true,
+                          source: 'study-session'
+                        }));
+                        setEvents((prev) => [...newEvents, ...prev]);
+
+                        setPreviewSuggestions(null);
+                        setSelectedSuggestionIds(new Set());
+                      } catch (error) {
+                        alert('Error saving study sessions');
+                        console.error(error);
+                      }
                     }}
                   >
                     Add Selected

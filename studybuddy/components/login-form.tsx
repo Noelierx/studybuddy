@@ -40,7 +40,8 @@ export function LoginForm({
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
-          }
+          },
+          scopes: 'https://www.googleapis.com/auth/calendar',
         }
       })
 
@@ -81,7 +82,6 @@ export function LoginForm({
         return
       }
 
-      // redirect on success — minimal client-side redirect
       window.location.href = "/dashboard"
     } catch (err: any) {
       setError(err?.message ?? String(err))
